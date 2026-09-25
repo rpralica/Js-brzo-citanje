@@ -1,130 +1,329 @@
 <!DOCTYPE html>
-<html lang="bs">
+<html lang="sr">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" type="text/css" href="style.css">
-  <title>Brzo citanje</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brzo Čitanje</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   
+    <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
 <body>
+<div class="container">
 
-  <h1>Brzo citanje - brojac, generator, tajmer</h1>
-<button onclick="toggleControls()" id="toggleBtn" style="font-size:18px;">Sakrij kontrole</button>
-  <div class="row">
-   
-
-    <div class="col2-left">
-      <div class="box">
-        <div class="label">Tajmer (countdown)</div>
-        <div class="row">
-          Min: <input type="number" id="timerMin" value="1" style="width:40px;">
-          Sek: <input type="number" id="timerSec" value="0" style="width:40px;">
-        </div>
-        <div class="row">
-          <span class="timer-display" id="timerDisplay">01:00</span>
-        </div>
-        <div class="row">
-          <button onclick="timerStart()">Start</button>
-          <button onclick="timerPause()">Pauza</button>
-          <button onclick="timerReset()">Reset</button>
-        </div>
-
-        <div class="row">
-          
-        </div>
-      </div>
+    <div class="container  rounded bg-info text-white  shadow-lg d-block mx-auto">
+        <h1 class="text-center">Brzo Čitanje</h1>
     </div>
-    
-    <div class="col2-right">
-      <div class="box">
-        <div class="label">Stoperica</div>
-        <div class="row">
-          <spa style="height: 4.3rem;" class="timer-display" id="stopwatchDisplay">00:00</span>
+    <!-- LIJEVA TRAKA (Sidebar sa tajmerima) -->
+    <div class="quick-timer-strip">
+        <div class="qt-block">
+            <div class="qt-label">Countdown</div>
+            <div class="qt-display" id="cdtDisplay">01:00</div>
+            <div class="qt-buttons">
+                <button class="qt-btn" type="button" onclick="startCountdown()">▶</button>
+                <button class="qt-btn" type="button" onclick="pauseCountdown()">⏸</button>
+                <button class="qt-btn" type="button" onclick="resetCountdown()">↺</button>
+            </div>
         </div>
-        <div class="row">
-          <button onclick="stopwatchStart()">Start</button>
-          <button onclick="stopwatchPause()">Pauza</button>
-          <button onclick="stopwatchReset()">Reset</button>
-         
-            <button onclick="setMarkerStart()">Mark Poč</button>
-            <button onclick="setMarkerEnd()">Mark Kraj</button>
-            <span class="info" id="markerInfo"></span>
-          
+
+        <div class="qt-block">
+            <div class="qt-label">Stoperica</div>
+            <div class="qt-display" id="swDisplay">00:00</div>
+            <div class="qt-buttons">
+                <button class="qt-btn" type="button" onclick="startStopwatch()">▶</button>
+                <button class="qt-btn" type="button" onclick="pauseStopwatch()">⏸</button>
+                <button class="qt-btn" type="button" onclick="resetStopwatch()">↺</button>
+            </div>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="box">
-    <div id="controlsTop">
-      <div class="row">
-        <span class="label">Font:</span>
-        <button onclick="changeFont(-1)">A-</button>
-        <span id="fontSizeLabel">18</span>
-        <button onclick="changeFont(1)">A+</button>
-        <button onclick="resetFont()">Reset</button>
-      </div>
-
-      <div class="row">
-        <span class="label">Broj rijeci za generisanje:</span>
-        <input type="number" id="genWords" value="600">
-        <button onclick="generateText()">Generisi</button>
-      </div>
-
-      <div class="row">
-        <span class="label">Ucitaj .txt fajl:</span>
-        <input type="file" id="fileInput" accept=".txt,text/plain" onchange="loadTextFile(event)">
-      </div>
+        <button class="qt-btn qt-settings" type="button" data-bs-toggle="offcanvas"
+            data-bs-target="#settingsOffcanvas">⚙</button>
     </div>
 
-    <textarea id="textArea" oninput="updateCount()" style="cursor: default;"  onkeyup="updateCount()"></textarea>
+    <!-- OFFCANVAS PODEŠAVANJA -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="settingsOffcanvas">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title">Podešavanja</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+            <fieldset class="border p-3 rounded mb-3">
+                <legend class="px-2 fw-bold text-primary text-center fs-6">Countdown</legend>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label small">Minuta</label>
+                        <input type="number" id="cdtMinInput" min="0" value="1" class="form-control form-control-sm"
+                            oninput="updateCdtInput()">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small">Sekundi</label>
+                        <input type="number" id="cdtSecInput" min="0" max="59" value="0"
+                            class="form-control form-control-sm" oninput="updateCdtInput()">
+                    </div>
+                </div>
+            </fieldset>
 
-    <div class="row info" id="countLabel">Rijeci: 0 Karaktera: 0</div>
+            <fieldset class="border p-3 rounded mb-3">
+                <legend class="px-2 fw-bold text-danger text-center fs-6">Margine</legend>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="small fw-bold">Debljina</span>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-danger" type="button"
+                            onclick="changeMarginThickness(-1)">−</button>
+                        <span class="btn btn-light disabled px-3" id="marginThickLbl">2</span>
+                        <button class="btn btn-outline-danger" type="button"
+                            onclick="changeMarginThickness(1)">+</button>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="small fw-bold">Boja</span>
+                    <input type="color" id="marginColorInput" value="#46b2e0"
+                        class="form-control form-control-color w-50" onchange="changeMarginColor(this.value)">
+                </div>
+                <div class="text-center mt-3">
+                    <button class="btn btn-sm btn-outline-danger" onclick="resetMargins()">Reset Margina</button>
+                </div>
+            </fieldset>
 
-    <div id="controlsBottom">
-      <div class="row">
-        <button onclick="clearText()">Clear</button>
-        <button onclick="countSelection()">Prebroji selektovano</button>
-        <span class="info" id="selectionLabel">Selektovano rijeci: 0</span>
-      </div>
-
-      <div class="row">
-        <button onclick="savePosition()">Sacuvaj poziciju (dokle sam stao)</button>
-        <button onclick="goToSavedPosition()">Idi na sacuvanu poziciju</button>
-        <span class="info" id="positionLabel"></span>
-      </div>
+            <fieldset class="border p-3 rounded">
+                <legend class="px-2 fw-bold text-info text-center fs-6">Pacer</legend>
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="small fw-bold">Boja</span>
+                    <input type="color" id="pacerColorInput" value="#ffa8a8"
+                        class="form-control form-control-color w-50" onchange="changePacerColor(this.value)">
+                </div>
+                <div class="text-center mt-3">
+                    <button class="btn btn-sm btn-outline-danger" onclick="resetPacerColor()">Reset Pacera</button>
+                </div>
+            </fieldset>
+        </div>
     </div>
-  </div>
 
-  <div class="col2-wrap" id="controlsTimers">
-   
- <div class="box">
-  <div style="margin-bottom: 1em;" class="label">Izracun WPM (rijeci u minuti)</div>
-  <div class="row">
-    <span class="label" style="display:inline-block; width:110px;">Br. rijeci:</span>
-    <input id="wpmRijeci" value="0" type="number" style="width:80px;">
-  </div>
-  <div class="row">
-    <span class="label" style="display:inline-block; width:110px;">Min</span>
-    <input id="min" value="0"  type="number" style="width:80px;">
-    <label for=""><strong>Sek</strong></label>
-    <input id="sek" value="0"  type="number">
-  </div>
-  <div class="row">
-    <span class="label" style="display:inline-block; width:110px;">Rezultat:</span>
-    <input id="wpmRez" type="number" style="width:80px;" readonly>
-  </div>
-  <button readonly  id="wpmBtn" >Izracunaj</button>
+    <!-- GLAVNI SADRŽAJ -->
+    <div class="main-content">
+        <div class="container-fluid p-0">
+
+            <!-- TOOLBAR -->
+            <div class="card mb-3 w-100">
+                <div class="card-body py-2">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                        <div class="d-flex align-items-center flex-grow-1 gap-2" style="min-width: 250px;">
+                            <input type="file" id="pdfFileInput" accept=".pdf,application/pdf"
+                                class="form-control form-control-sm flex-grow-1" onchange="handleFileSelect(event)">
+                            <button id="closePdfBtn" class="btn btn-outline-danger btn-sm text-nowrap d-none"
+                                type="button" onclick="closePdf()">✕ Zatvori</button>
+                        </div>
+
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-bold small">Font</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-success" type="button"
+                                        onclick="changeFontSize(-1)">A-</button>
+                                    <span class="btn btn-light disabled px-2" id="fontSizeLbl">25</span>
+                                    <button class="btn btn-outline-success" type="button"
+                                        onclick="changeFontSize(1)">A+</button>
+                                    <button class="btn btn-outline-success" type="button"
+                                        onclick="resetFontSize()">Reset</button>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-bold small">Širina</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-info" type="button"
+                                        onclick="changeReaderWidth(-10)">−</button>
+                                    <span class="btn btn-light disabled px-2" id="readerWidthLbl">40%</span>
+                                    <button class="btn btn-outline-info" type="button"
+                                        onclick="changeReaderWidth(10)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="marginToggle"
+                                    onchange="toggleMargins()">
+                                <label class="form-check-label small" for="marginToggle">Margine</label>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-bold small">Lijeva</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-danger" type="button"
+                                        onclick="changeMarginPos('left', -2)">−</button>
+                                    <span class="btn btn-light disabled px-2" id="marginLeftLbl">10%</span>
+                                    <button class="btn btn-outline-danger" type="button"
+                                        onclick="changeMarginPos('left', 2)">+</button>
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-bold small">Desna</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-danger" type="button"
+                                        onclick="changeMarginPos('right', -2)">−</button>
+                                    <span class="btn btn-light disabled px-2" id="marginRightLbl">10%</span>
+                                    <button class="btn btn-outline-danger" type="button"
+                                        onclick="changeMarginPos('right', 2)">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="infoAlert" class="alert alert-info py-1 px-2 d-none"></div>
+
+            <!-- PASTED TEXT SEKCIJA (Kad nema PDF-a) -->
+            <div id="pastedSection" class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold small">Zalijepi tekst (brojanje riječi)</span>
+                        <span class="info" id="pastedStatsLbl">Riječi: 0 &nbsp;|&nbsp; Selektovano riječi: 0</span>
+                    </div>
+                    <textarea id="pastedTextArea" class="form-control" rows="4" placeholder="Zalijepi tekst ovdje..."
+                        oninput="onTextPasteInput()" onmouseup="onTextPasteSelect()"
+                        onkeyup="onTextPasteSelect()"></textarea>
+                    <div class="d-flex gap-2 mt-2">
+                        <button id="taRaceBtn" class="btn btn-warning btn-sm" type="button" onclick="toggleTaRace()">🏁
+                            Start</button>
+                        <button class="btn btn-danger btn-sm ms-auto" type="button"
+                            onclick="clearTextArea()">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF KONTROLE I ČITAČ (Sakriveno dok se ne učita fajl) -->
+            <div id="pdfSection" class="d-none">
+                <div class="card mb-3">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                            <span class="info">Ukupno riječi: <strong id="totalDocWordsLbl">0</strong></span>
+                            <span class="info" id="pageWordCountLbl">Riječi na stranici: 0</span>
+                            <span class="info" id="pageInfoLbl">Stranica: 1 / 1</span>
+                        </div>
+
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="searchInput" class="form-control"
+                                placeholder="Pretraži cijeli dokument..."
+                                onkeydown="if(event.key==='Enter') runSearch()">
+                            <button class="btn btn-primary" type="button" onclick="runSearch()">Pretraga</button>
+                        </div>
+                        <div id="searchResultsBox" class="search-results border rounded p-2 mt-2 d-none"></div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-center align-items-center gap-2 mb-2 flex-wrap">
+                    <div class="btn-group">
+                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="prevPage()">«
+                            Prethodna</button>
+                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="nextPage()">Sljedeća
+                            »</button>
+                    </div>
+                    <div class="input-group input-group-sm" style="width: auto;">
+                        <span class="input-group-text">Idi na str.</span>
+                        <input type="number" id="goToPageInput" min="1" class="form-control" style="width: 70px;"
+                            onkeydown="if(event.key==='Enter') goToPageNum()">
+                        <button class="btn btn-info" type="button" onclick="goToPageNum()">Idi</button>
+                    </div>
+                </div>
+
+                <!-- PAUZA / NASTAVI -->
+                <div id="sessionPauseBox" class="d-flex justify-content-center mb-2 d-none">
+                    <button id="pauseResumeBtn" class="btn btn-outline-secondary btn-sm" type="button"
+                        onclick="togglePauseSession()">⏸ Pauza</button>
+                </div>
+
+                <!-- RACE -->
+                <div class="card mb-3">
+                    <div class="card-body py-2 text-center">
+                        <button id="raceToggleBtn" class="btn btn-warning btn-sm" type="button"
+                            onclick="toggleRace()">🏁 Start Race</button>
+                        <div id="raceStatsBox" class="race-stats mt-2"></div>
+                    </div>
+                </div>
+
+                <!-- PACER -->
+                <div class="card mb-3">
+                    <div class="card-body py-2 text-center">
+                        <div id="pacerControls"
+                            class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                            <div class="input-group input-group-sm" style="width: auto;">
+                                <span class="input-group-text">WPM</span>
+                                <input type="number" id="pacerWpmInput" min="50" step="10" value="300"
+                                    class="form-control" style="width: 70px;">
+                            </div>
+                            <div class="input-group input-group-sm" style="width: auto;">
+                                <span class="input-group-text">Grupa</span>
+                                <select id="pacerChunkSelect" class="form-select" style="width: 65px;">
+                                    <option value="1">1</option>
+                                    <option value="2" selected>2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary btn-sm" type="button" onclick="startPacer()">🎯 Start
+                                Pacer</button>
+                        </div>
+                        <div id="pacerActiveBox"
+                            class="d-none justify-content-center align-items-center gap-2 flex-wrap">
+                            <button class="btn btn-danger btn-sm" type="button" onclick="stopPacer()">⏹ Stop
+                                Pacer</button>
+                            <span class="info" id="pacerStatusLbl">Tempo: 300 wpm</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GLAVNI PROZOR ZA ČITANJE TEKSTA -->
+            <div class="reader-content-wrap mx-auto" id="readerWrap" style="width: 40%;">
+                <div id="marginLineLeft" class="margin-line d-none" style="left: 10%;"></div>
+                <div id="marginLineRight" class="margin-line d-none" style="right: 10%;"></div>
+                <div id="readerContent" class="reader-content border rounded p-3 mb-3" style="font-size: 25px;">
+                    <span class="text-muted">Izaberite PDF fajl gore ili unesite tekst u polje iznad...</span>
+                </div>
+            </div>
+
+            <!-- DONJE KONTROLE ZA POZICIJU I MARKERE -->
+            <div id="pdfBottomControls" class="d-none">
+                <div class="card mb-3">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj
+                                poziciju</button>
+                            <button class="btn btn-secondary btn-sm" type="button"
+                                onclick="goToSavedPositionModal()">Idi na sačuvanu poziciju</button>
+                            <span class="info ms-2" id="prevPosLbl"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mb-3">
+                    <div class="card-body py-2">
+                        <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                            <button class="btn btn-outline-success btn-sm" type="button"
+                                onclick="setMarker('start')">Marker Početak</button>
+                            <button class="btn btn-outline-danger btn-sm" type="button"
+                                onclick="setMarker('end')">Marker Kraj</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button"
+                                onclick="clearMarkers()">Obriši markere</button>
+                            <span class="info ms-2" id="markerCountLbl"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
 </div>
+    <!-- Bootstrap i PDF.js skripte -->
+    <script src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+   
 
-  </div>
-
-
-
-<script src="script.js"></script>
 
 </body>
 

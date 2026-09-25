@@ -1,431 +1,584 @@
-var fontSize = 18;
-var FONT_MIN = 12;
-var FONT_MAX = 48;
-var wpmRijeci = document.getElementById('wpmRijeci');
-var sek = document.getElementById('sek');
-var min = document.getElementById('min');
-var wpmRez = document.getElementById('wpmRez');
-var wpmBtn = document.getElementById('wpmBtn');
-var markerStart = null;
-var markerEnd = null;
+ 
+        // Podešavanje PDF.js worker-a
+        if (window['pdfjsLib']) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        }
 
-function setMarkerStart() {
-  markerStart = document.getElementById('textArea').selectionStart;
-  document.getElementById('markerInfo').innerHTML =
-    'Pocetak: karakter ' + markerStart;
-}
+        // --- GLOBALNE STATIČKE VARIJABLE (ES5 kompatibilno) ---
+        var fontSize = 25;
+        var readerWidth = 40;
+        var marginEnabled = false;
+        var marginLeft = 10;
+        var marginRight = 10;
+        var marginThick = 2;
+        var marginColor = '#46b2e0';
+        var pacerColor = '#ffa8a8';
 
-function setMarkerEnd() {
-  markerEnd = document.getElementById('textArea').selectionStart;
-  if (markerStart === null) {
-    alert('Prvo postavi Marker Pocetak.');
-    return;
-  }
-  var content = document.getElementById('textArea').value;
-  var from = Math.min(markerStart, markerEnd);
-  var to = Math.max(markerStart, markerEnd);
-  var segment = content.substring(from, to);
-  var words = countWords(segment);
-  document.getElementById('markerInfo').innerHTML =
-    'Procitano: ' + words + ' rijeci (od ' + from + ' do ' + to + ')';
-}
+        var words = [];
+        var currentFileName = '';
+        var pdfDoc = null;
+        var currentPage = 1;
+        var totalPages = 1;
+        var totalWordsInDoc = 0;
+        var pagesCache = {};
 
+        var posIndex = null;
+        var startIndex = null;
+        var endIndex = null;
 
-function calcWpm() {
-  var mints = (Number(min.value) * 60 + Number(sek.value)) / 60;
-  wpmRez.value = Math.floor(wpmRijeci.value / mints);
-}
+        // Countdown varijable
+        var cdtRemaining = 60;
+        var cdtRunning = false;
+        var cdtTimerId = null;
+        var cdtHasStarted = false;
 
-wpmBtn.addEventListener('click', function (e) {
-  e.preventDefault();
-  calcWpm();
-});
+        // Stopwatch varijable
+        var swElapsed = 0;
+        var swRunning = false;
+        var swTimerId = null;
 
-function changeFont(delta) {
-  fontSize = fontSize + delta;
-  if (fontSize < FONT_MIN) fontSize = FONT_MIN;
-  if (fontSize > FONT_MAX) fontSize = FONT_MAX;
-  applyFont();
-}
+        // Race & Pacer varijable
+        var raceActive = false;
+        var raceStats = [];
+        var raceLastTime = 0;
+        var pacerActive = false;
+        var pacerIndex = 0;
+        var pacerIntervalId = null;
+        var isPaused = false;
 
-function resetFont() {
-  fontSize = 18;
-  applyFont();
-}
+        // Učitavanje lokalnih podešavanja pri startu
+        if (localStorage.getItem('margin_debljina')) marginThick = parseInt(localStorage.getItem('margin_debljina'), 10);
+        if (localStorage.getItem('margin_boja')) marginColor = localStorage.getItem('margin_boja');
+        if (localStorage.getItem('pacer_color')) pacerColor = localStorage.getItem('pacer_color');
 
-function applyFont() {
-  document.getElementById('textArea').style.fontSize = fontSize + 'px';
-  document.getElementById('fontSizeLabel').innerHTML = fontSize;
-}
+        document.getElementById('marginThickLbl').innerText = marginThick;
+        document.getElementById('marginColorInput').value = marginColor;
+        document.getElementById('pacerColorInput').value = pacerColor;
+        document.documentElement.style.setProperty('--pace-mark-color', pacerColor);
 
-function countWords(s) {
-  var trimmed = s.replace(/^\s+|\s+$/g, '');
-  if (trimmed.length === 0) return 0;
-  var parts = trimmed.split(/\s+/);
-  return parts.length;
-}
+        // --- POMOĆNE FUNKCIJE ---
+        function splitToWords(text) {
+            if (!text) return [];
+            var trimmed = text.trim();
+            if (trimmed.length === 0) return [];
+            return trimmed.split(/\s+/);
+        }
 
-function updateCount() {
-  var content = document.getElementById('textArea').value;
-  var words = countWords(content);
-  var chars = content.length;
-  document.getElementById('countLabel').innerHTML =
-    'Rijeci: ' + words + '   Karaktera: ' + chars;
-}
+        function formatTime(secs) {
+            var m = Math.floor(secs / 60);
+            var s = secs % 60;
+            return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+        }
 
-function clearText() {
-  document.getElementById('textArea').value = '';
-  updateCount();
-  document.getElementById('selectionLabel').innerHTML = 'Selektovano rijeci: 0';
-  currentFileName = '';
-  document.getElementById('positionLabel').innerHTML = '';
-}
+        // --- TAJMERI (LIJEVA TRAKA) ---
+        function updateCdtInput() {
+            if (!cdtHasStarted) {
+                var m = parseInt(document.getElementById('cdtMinInput').value) || 0;
+                var s = parseInt(document.getElementById('cdtSecInput').value) || 0;
+                cdtRemaining = m * 60 + s;
+                document.getElementById('cdtDisplay').innerText = formatTime(cdtRemaining);
+            }
+        }
 
-// --- Ucitavanje .txt fajla i pamcenje pozicije ---
-var currentFileName = '';
+        function startCountdown() {
+            if (cdtRunning) return;
+            if (!cdtHasStarted || cdtRemaining <= 0) {
+                var m = parseInt(document.getElementById('cdtMinInput').value) || 0;
+                var s = parseInt(document.getElementById('cdtSecInput').value) || 0;
+                cdtRemaining = m * 60 + s;
+            }
+            cdtHasStarted = true;
+            cdtRunning = true;
+            cdtTimerId = setInterval(function () {
+                if (cdtRemaining <= 0) {
+                    pauseCountdown();
+                    alert('Vrijeme je isteklo!');
+                    return;
+                }
+                cdtRemaining--;
+                document.getElementById('cdtDisplay').innerText = formatTime(cdtRemaining);
+            }, 1000);
+        }
 
-function loadTextFile(event) {
-  var file = event.target.files[0];
-  if (!file) return;
+        function pauseCountdown() {
+            cdtRunning = false;
+            if (cdtTimerId) { clearInterval(cdtTimerId); cdtTimerId = null; }
+        }
 
-  var reader = new FileReader();
-  reader.onload = function (e) {
-    document.getElementById('textArea').value = e.target.result;
-    currentFileName = file.name;
-    updateCount();
+        function resetCountdown() {
+            pauseCountdown();
+            cdtHasStarted = false;
+            updateCdtInput();
+        }
 
-    var savedPos = localStorage.getItem('pozicija_' + currentFileName);
-    if (savedPos !== null) {
-      document.getElementById('positionLabel').innerHTML =
-        'Nadjena sacuvana pozicija za ovaj fajl (karakter ' +
-        savedPos +
-        "). Klikni 'Idi na sacuvanu poziciju'.";
-    } else {
-      document.getElementById('positionLabel').innerHTML = '';
-    }
-  };
-  reader.readAsText(file, 'UTF-8');
-}
+        function startStopwatch() {
+            if (swRunning) return;
+            swRunning = true;
+            swTimerId = setInterval(function () {
+                swElapsed++;
+                document.getElementById('swDisplay').innerText = formatTime(swElapsed);
+            }, 1000);
+        }
 
-function savePosition() {
-  if (!currentFileName) {
-    alert('Prvo ucitaj .txt fajl da bi mogao sacuvati poziciju.');
-    return;
-  }
-  var ta = document.getElementById('textArea');
-  var pos = ta.selectionStart;
-  localStorage.setItem('pozicija_' + currentFileName, pos);
-  document.getElementById('positionLabel').innerHTML =
-    'Sacuvano na karakteru ' + pos + '.';
-}
+        function pauseStopwatch() {
+            swRunning = false;
+            if (swTimerId) { clearInterval(swTimerId); swTimerId = null; }
+        }
 
-function goToSavedPosition() {
-  if (!currentFileName) {
-    alert('Prvo ucitaj .txt fajl.');
-    return;
-  }
-  var savedPos = localStorage.getItem('pozicija_' + currentFileName);
-  if (savedPos === null) {
-    alert('Nema sacuvane pozicije za ovaj fajl.');
-    return;
-  }
-  var pos = parseInt(savedPos, 10);
-  var ta = document.getElementById('textArea');
-  ta.focus();
-  ta.selectionStart = pos;
-  ta.selectionEnd = pos;
-  document.getElementById('positionLabel').innerHTML =
-    'Na poziciji ' + pos + '.';
-}
+        function resetStopwatch() {
+            pauseStopwatch();
+            swElapsed = 0;
+            document.getElementById('swDisplay').innerText = formatTime(swElapsed);
+        }
 
-function countSelection() {
-  var ta = document.getElementById('textArea');
-  var start = ta.selectionStart;
-  var end = ta.selectionEnd;
-  var n = 0;
-  if (start !== undefined && end !== undefined && end > start) {
-    var selected = ta.value.substring(start, end);
-    n = countWords(selected);
-  }
-  document.getElementById('selectionLabel').innerHTML =
-    'Selektovano rijeci: ' + n;
-    wpmRijeci.value=n;
-    min.value=timerMin.value;
-    sek.value=timerSec.value;
-}
+        // --- PODEŠAVANJA IZ SIDEBAR-A ---
+        function changeMarginThickness(delta) {
+            marginThick = Math.max(1, marginThick + delta);
+            document.getElementById('marginThickLbl').innerText = marginThick;
+            localStorage.setItem('margin_debljina', marginThick);
+            applyMarginsStyle();
+        }
 
-// --- Banka recenica za generisanje vjezbovnog teksta ---
-var SENTENCE_BANK = [
-  'Jutro je pocelo maglom koja se polako dizala iznad rijeke.',
-  'Stari mlin na obali godinama stoji napusten i zarastao u trave.',
-  'Djeca su trcala niz ulicu tjerajuci obruc od bicikla.',
-  'Miris svjezeg hljeba sirio se cijelom pekarom vec od pet ujutru.',
-  'Planinski vrh bio je pokriven snijegom i onda kada je dolina bila zelena.',
-  'Vlak je kasnio dvadeset minuta zbog radova na pruzi.',
-  'Biblioteka u centru grada otvorena je do kasno u noc.',
-  'Ribar je svako jutro izlazio na jezero prije izlaska sunca.',
-  'Novi most preko rijeke skratio je put za pola sata.',
-  'Baka je cuvala stare fotografije u drvenoj kutiji na tavanu.',
-  'Vjetar je nosio lisce preko prazne skolske dvorista.',
-  'Kompjuterski program je izracunao rezultat za samo nekoliko sekundi.',
-  'Susjed je posadio jabuke uz ogradu jos prije dvadeset godina.',
-  'Autobus je stao na svakoj stanici, pa je voznja potrajala duze.',
-  'Mladi inzenjer je predlozio novo rjesenje za ustedu energije.',
-  'Kisa je padala cijelu noc, a jutro je bilo svjeze i cisto.',
-  'Trg je bio pun ljudi koji su cekali pocetak koncerta.',
-  'Fabrika papira zatvorena je prije deset godina zbog nedostatka sirovina.',
-  'Planinari su krenuli u zoru kako bi stigli na vrh prije podne.',
-  'Novinar je proveo cijeli dan trazeci odgovore na svoja pitanja.',
-  'Vocnjak iza kuce daje dovoljno sljiva za cijelu zimu.',
-  'Grad je noc izgledao potpuno drugacije nego danju.',
-  'Ucenici su pazljivo slusali dok je nastavnik objasnjavao novo gradivo.',
-  'Stara knjizara na uglu prodaje i polovne udzbenike.',
-  'Radnici su popravljali krov skole tokom ljetnog raspusta.',
-  'Pas je cekao ispred vrata svaki dan u isto vrijeme.',
-  'Rijeka je nabujala nakon nekoliko dana neprekidne kise.',
-  'Pekar je otvorio radnju prije nego sto je grad uopste prohodao.',
-  'Fudbalska utakmica je otkazana zbog loseg vremena.',
-  'Fabrika automobila najavila je otvaranje novih radnih mjesta.',
-  'Djevojcica je crtala kucu sa velikim prozorima i crvenim krovom.',
-  'Vozac kamiona vozio je cijelu noc da bi stigao na vrijeme.',
-  'Zimski dani su kratki, pa se mrak spusta vec poslije cetiri.',
-  'Poljoprivrednik je posijao psenicu ranije nego prosle godine.',
-  'Grupa turista je fotografisala staru tvrdjavu sa svih strana.',
-  'Nastavnica je pohvalila ucenike za trud ulozen u projekat.',
-  'Vjetrenjace na brdu okrecu se cak i pri slabom vjetru.',
-  'Prodavnica na uglu radi od sedam ujutru do deset uvece.',
-  'Pilot je najavio putnicima blago kasnjenje zbog nevremena.',
-  'Stari sat na tornju otkucava svaki puni sat vec stotinu godina.',
-  'Ljekar je preporucio pacijentu vise kretanja i manje soli u ishrani.',
-  'Djeca su gradila zamak od pijeska sve dok nije dosla plima.',
-  'Vatrogasci su brzo stavili pozar pod kontrolu.',
-  'Bibliotekar je pomogao studentu da pronadje potrebnu knjigu.',
-  'Selo je ostalo bez struje na nekoliko sati zbog oluje.',
-  'Mladic je popravio bicikl koristeci samo osnovni alat.',
-  'Novi zakon je izazvao rasprave medju stanovnicima grada.',
-  'Kuvar je pripremio rucak za pedeset gostiju bez icije pomoci.',
-  'Astronom je posmatrao zvijezde satima kroz stari teleskop.',
-  'Radionica za popravku obuce postoji na istom mjestu decenijama.',
-  'Djed je pricao unucima price iz svoje mladosti svako vece.',
-  'Ledeni vjetar je tjerao prolaznike da zurno traze zaklon.',
-  'Trgovac je snizio cijene pred kraj sezone.',
-  'Studenti su organizovali predavanje o zastiti zivotne sredine.',
-  'Slikar je proveo cijelo popodne radeci na jednom detalju platna.',
-  'Autobuska stanica je obnovljena prosle godine.',
-  'Farmer je prodao dio stoke zbog suse koja je potrajala mjesecima.',
-  'Deca su se igrala skrivaca iza starih ambara.',
-  'Postar je dolazio u selo samo dva puta sedmicno.',
-  'Muzicari su svirali na trgu sve do ponoci.',
-  'Voz za glavni grad polazi svakog jutra u sest.',
-  'Fotograf je cekao pravu svjetlost da uslika zalazak sunca.',
-  'Majstor je popravio krov prije nego sto su pocele jesenje kise.',
-  'Skola je organizovala izlet u obliznji nacionalni park.',
-  'Prodavac novina je poznavao svakog stanovnika ulice po imenu.',
-  'Meteorolog je najavio pogorsanje vremena za vikend.',
-  'Fabrika tekstila zaposljava vecinu radnika u malom gradu.',
-  'Djeca su naucila da plivaju u rijeci iza kuce.',
-  'Stari most je zatvoren za saobracaj zbog ostecenja.',
-  'Vozac taksija je poznavao svaku precicu u gradu.',
-  'Basta iza kuce puna je paradajza i paprike svakog ljeta.',
-  'Novinska agencija je prenijela vijest u roku od nekoliko minuta.',
-  'Planinarski dom nudi prenociste i toplu hranu umornim putnicima.',
-  'Trener je zadovoljan napretkom mladih igraca tokom sezone.',
-  'Pilot je sletio bez problema uprkos jakom bocnom vjetru.',
-  'Susjedi su zajedno ocistili park pored zgrade.',
-  'Doktorka je otvorila ordinaciju u centru grada prije pet godina.',
-  'Radnici na pruzi su radili cijele noci da zavrse popravku.',
-  'Djevojcica je naucila da svira gitaru posmatrajuci starijeg brata.',
-  'Prodavnica knjiga organizuje veceri citanja svakog petka.',
-  'Vlasnik kafica je zamijenio stolove i stolice proslog mjeseca.',
-  'Grupa naucnika je otkrila novu vrstu biljke u dolini.',
-  'Vozovi na ovoj liniji voze rjedje vikendom.',
-  'Bastovan je posadio ruze duz cijele staze.',
-  'Mladi programer je razvio aplikaciju za pracenje vremena.',
-  'Seljani su se okupili na trgu povodom praznika.',
-  'Knjizara je proslavila dvadeset godina rada malom svecanoscu.',
-  'Radio stanica emituje vijesti svakog sata na pola sata.',
-  'Djeca su sadila drvece u skolskom dvoristu u proljece.',
-  'Stolar je izradio sto od starog hrastovog drveta.',
-  'Vatra u kaminu grijala je cijelu kucu do jutra.',
-  'Novi zakon o saobracaju stupa na snagu sljedeceg mjeseca.',
-  'Planinarska staza vodi kroz gustu sumu do vidikovca.',
-  'Prodavac voca dolazi na pijacu svakog utorka i petka.',
-  'Fudbaleri su trenirali dva puta dnevno pred veliku utakmicu.',
-  'Selo je poznato po starim kucama od kamena.',
-  'Mehanicar je zamijenio kocnice na automobilu za manje od sat vremena.',
-  'Nastavnik matematike je smislio novu igru za vjezbanje racunanja.',
-  'Rijetka ptica vidjena je pored jezera prosle sedmice.',
-  'Radnici u fabrici dobili su nove uniforme ove godine.',
-  'Djed i baka su svaki dan setali istom stazom pored rijeke.',
-  'Autor je predstavio svoju novu knjigu na sajmu.',
-  'Grad je uveo nove biciklisticke staze duz glavne ulice.',
-];
+        function changeMarginColor(val) {
+            marginColor = val;
+            localStorage.setItem('margin_boja', marginColor);
+            applyMarginsStyle();
+        }
 
-function shuffleArray(arr) {
-  var a = arr.slice();
-  for (var i = a.length - 1; i > 0; i--) {
-    var j = Math.floor(Math.random() * (i + 1));
-    var tmp = a[i];
-    a[i] = a[j];
-    a[j] = tmp;
-  }
-  return a;
-}
+        function changePacerColor(val) {
+            pacerColor = val;
+            localStorage.setItem('pacer_color', pacerColor);
+            document.documentElement.style.setProperty('--pace-mark-color', pacerColor);
+        }
 
-function generateText() {
-  var targetInput = document.getElementById('genWords').value;
-  var target = parseInt(targetInput, 10);
-  if (isNaN(target) || target <= 0) {
-    target = 600;
-  }
+        function resetMargins() {
+            marginThick = 1;
+            marginColor = '#46b2e0';
+            document.getElementById('marginThickLbl').innerText = marginThick;
+            document.getElementById('marginColorInput').value = marginColor;
+            localStorage.setItem('margin_debljina', marginThick);
+            localStorage.setItem('margin_boja', marginColor);
+            applyMarginsStyle();
+            alert('Margine resetovane!');
+        }
 
-  var pool = shuffleArray(SENTENCE_BANK);
-  var result = [];
-  var wordTotal = 0;
-  var idx = 0;
+        function resetPacerColor() {
+            pacerColor = '#ffa8a8';
+            document.getElementById('pacerColorInput').value = pacerColor;
+            localStorage.setItem('pacer_color', pacerColor);
+            document.documentElement.style.setProperty('--pace-mark-color', pacerColor);
+            alert('Boja pacera resetovana!');
+        }
 
-  while (wordTotal < target) {
-    if (idx >= pool.length) {
-      pool = shuffleArray(SENTENCE_BANK);
-      idx = 0;
-    }
-    var sentence = pool[idx];
-    idx = idx + 1;
-    result.push(sentence);
-    wordTotal = wordTotal + countWords(sentence);
-  }
+        // --- READER KONTROLE ---
+        function changeFontSize(delta) {
+            fontSize = Math.min(60, Math.max(12, fontSize + delta));
+            document.getElementById('fontSizeLbl').innerText = fontSize;
+            document.getElementById('readerContent').style.fontSize = fontSize + 'px';
+        }
+        function resetFontSize() {
+            fontSize = 25;
+            document.getElementById('fontSizeLbl').innerText = fontSize;
+            document.getElementById('readerContent').style.fontSize = fontSize + 'px';
+        }
 
-  // Grupisi u pasuse od po 4 recenice
-  var paragraphs = [];
-  var i2;
-  for (i2 = 0; i2 < result.length; i2 = i2 + 4) {
-    paragraphs.push(result.slice(i2, i2 + 4).join(' '));
-  }
-  var finalText = paragraphs.join('\n\n');
+        function changeReaderWidth(delta) {
+            readerWidth = Math.min(100, Math.max(20, readerWidth + delta));
+            document.getElementById('readerWidthLbl').innerText = readerWidth + '%';
+            document.getElementById('readerWrap').style.width = readerWidth + '%';
+        }
 
-  document.getElementById('textArea').value = finalText;
-  updateCount();
-}
+        function toggleMargins() {
+            marginEnabled = document.getElementById('marginToggle').checked;
+            applyMarginsStyle();
+        }
 
-// --- Tajmer (countdown) ---
-var timerRemaining = 60;
-var timerRunning = false;
-var timerIntervalId = null;
+        function changeMarginPos(side, delta) {
+            if (side === 'left') {
+                marginLeft = Math.min(40, Math.max(0, marginLeft + delta));
+                document.getElementById('marginLeftLbl').innerText = marginLeft + '%';
+            } else {
+                marginRight = Math.min(40, Math.max(0, marginRight + delta));
+                document.getElementById('marginRightLbl').innerText = marginRight + '%';
+            }
+            applyMarginsStyle();
+        }
 
-function timerFormat(sec) {
-  var m = Math.floor(sec / 60);
-  var s = sec % 60;
-  var mStr = m < 10 ? '0' + m : '' + m;
-  var sStr = s < 10 ? '0' + s : '' + s;
-  return mStr + ':' + sStr;
-}
+        function applyMarginsStyle() {
+            var ml = document.getElementById('marginLineLeft');
+            var mr = document.getElementById('marginLineRight');
+            if (marginEnabled) {
+                ml.classList.remove('d-none');
+                mr.classList.remove('d-none');
+                ml.style.left = marginLeft + '%';
+                ml.style.backgroundColor = marginColor;
+                ml.style.width = marginThick + 'px';
+                mr.style.right = marginRight + '%';
+                mr.style.backgroundColor = marginColor;
+                mr.style.width = marginThick + 'px';
+            } else {
+                ml.classList.add('d-none');
+                mr.classList.add('d-none');
+            }
+        }
 
-function timerUpdateDisplay() {
-  document.getElementById('timerDisplay').innerHTML =
-    timerFormat(timerRemaining);
-}
+        // --- TEKST / PASTE BROJANJE ---
+        function onTextPasteInput() {
+            var val = document.getElementById('pastedTextArea').value;
+            var cnt = splitToWords(val).length;
+            document.getElementById('pastedStatsLbl').innerHTML = 'Riječi: ' + cnt + ' &nbsp;|&nbsp; Selektovano riječi: 0';
+        }
 
-function timerReadInputs() {
-  var m = parseInt(document.getElementById('timerMin').value, 10);
-  var s = parseInt(document.getElementById('timerSec').value, 10);
-  if (isNaN(m) || m < 0) m = 1;
-  if (isNaN(s) || s < 0) s = 0;
-  if (s > 59) s = 59;
-  return m * 60 + s;
-}
+        function onTextPasteSelect() {
+            var ta = document.getElementById('pastedTextArea');
+            var start = ta.selectionStart;
+            var end = ta.selectionEnd;
+            var val = ta.value;
+            var selCnt = 0;
+            if (end > start) {
+                selCnt = splitToWords(val.substring(start, end)).length;
+            }
+            var totalCnt = splitToWords(val).length;
+            document.getElementById('pastedStatsLbl').innerHTML = 'Riječi: ' + totalCnt + ' &nbsp;|&nbsp; Selektovano riječi: ' + selCnt;
+        }
 
-function timerStart() {
-  if (timerRunning) return;
-  if (timerRemaining <= 0) {
-    timerRemaining = timerReadInputs();
-  }
-  timerRunning = true;
-  timerIntervalId = setInterval(function () {
-    timerUpdateDisplay();
-    if (timerRemaining <= 0) {
-      timerRunning = false;
-      clearInterval(timerIntervalId);
-      alert('Vrijeme je isteklo!');
-      return;
-    }
-    timerRemaining = timerRemaining - 1;
-  }, 1000);
-}
+        function clearTextArea() {
+            document.getElementById('pastedTextArea').value = '';
+            onTextPasteInput();
+        }
 
-function timerPause() {
-  timerRunning = false;
-  if (timerIntervalId !== null) {
-    clearInterval(timerIntervalId);
-    timerIntervalId = null;
-  }
-}
+        var taRacing = false;
+        var taStartTime = 0;
+        function toggleTaRace() {
+            var val = document.getElementById('pastedTextArea').value;
+            if (!val.trim()) { alert('Nema teksta za mjerenje.'); return; }
+            if (!taRacing) {
+                taRacing = true;
+                taStartTime = new Date().getTime();
+                document.getElementById('taRaceBtn').innerText = '⏹ Stop';
+                document.getElementById('taRaceBtn').className = 'btn btn-danger btn-sm';
+            } else {
+                var secs = (new Date().getTime() - taStartTime) / 1000;
+                var wordsCnt = splitToWords(val).length;
+                var mins = secs / 60;
+                var wpm = mins > 0 ? Math.round(wordsCnt / mins) : 0;
+                taRacing = false;
+                document.getElementById('taRaceBtn').innerText = '🏁 Start';
+                document.getElementById('taRaceBtn').className = 'btn btn-warning btn-sm';
+                alert('Rezultat - Riječi: ' + wordsCnt + ', Vrijeme: ' + secs.toFixed(1) + 's, WPM: ' + wpm);
+            }
+        }
 
-function timerReset() {
-  timerPause();
-  timerRemaining = timerReadInputs();
-  timerUpdateDisplay();
-}
+        // --- PDF UČITAVANJE I PRIKAZ ---
+        function handleFileSelect(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                alert('Samo PDF fajlovi su podržani.');
+                return;
+            }
+            loadPdfFile(file);
+        }
 
-// --- Stoperica (count up) ---
-var stopwatchElapsed = 0;
-var stopwatchRunning = false;
-var stopwatchIntervalId = null;
+        function loadPdfFile(file) {
+            var reader = new FileReader();
+            reader.onload = function (event) {
+                var typedarray = new Uint8Array(event.target.result);
+                pdfjsLib.getDocument(typedarray).promise.then(function (doc) {
+                    pdfDoc = doc;
+                    totalPages = doc.numPages;
+                    currentFileName = file.name;
+                    currentPage = 1;
+                    pagesCache = {};
+                    words = [];
+                    posIndex = null;
+                    startIndex = null;
+                    endIndex = null;
 
-function stopwatchUpdateDisplay() {
-  document.getElementById('stopwatchDisplay').innerHTML =
-    timerFormat(stopwatchElapsed);
-}
+                    document.getElementById('pastedSection').classList.add('d-none');
+                    document.getElementById('pdfSection').classList.remove('d-none');
+                    document.getElementById('pdfBottomControls').classList.remove('d-none');
+                    document.getElementById('closePdfBtn').classList.remove('d-none');
 
-function stopwatchStart() {
-  if (stopwatchRunning) return;
-  stopwatchRunning = true;
-  stopwatchIntervalId = setInterval(function () {
-    stopwatchUpdateDisplay();
-    stopwatchElapsed = stopwatchElapsed + 1;
-  }, 1000);
-}
+                    renderPage(1);
+                    extractAllPagesAsync();
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
 
-function stopwatchPause() {
-  stopwatchRunning = false;
-  if (stopwatchIntervalId !== null) {
-    clearInterval(stopwatchIntervalId);
-    stopwatchIntervalId = null;
-  }
-}
+        function extractAllPagesAsync() {
+            var totalW = 0;
+            var completed = 0;
+            for (var p = 1; p <= totalPages; p++) {
+                (function (pageNum) {
+                    pdfDoc.getPage(pageNum).then(function (page) {
+                        page.getTextContent().then(function (tc) {
+                            var raw = tc.items.map(function (item) { return item.str; }).join(' ');
+                            var cleaned = raw.replace(/\s+/g, ' ').trim();
+                            var pw = splitToWords(cleaned);
+                            pagesCache[pageNum] = pw;
+                            totalW += pw.length;
+                            completed++;
+                            if (completed === totalPages) {
+                                totalWordsInDoc = totalW;
+                                document.getElementById('totalDocWordsLbl').innerText = totalWordsInDoc;
+                            }
+                        });
+                    });
+                })(p);
+            }
+        }
 
-function stopwatchReset() {
-  stopwatchPause();
-  stopwatchElapsed = 0;
-  stopwatchUpdateDisplay();
-}
+        function renderPage(pageNum) {
+            if (pageNum < 1) pageNum = 1;
+            if (pageNum > totalPages) pageNum = totalPages;
+            currentPage = pageNum;
 
-// --- Sakrivanje kontrola radi vise prostora za tekst na malom ekranu ---
-var controlsHidden = false;
+            if (pagesCache[pageNum]) {
+                words = pagesCache[pageNum];
+                displayWords();
+            } else {
+                pdfDoc.getPage(pageNum).then(function (page) {
+                    page.getTextContent().then(function (tc) {
+                        var raw = tc.items.map(function (item) { return item.str; }).join(' ');
+                        var cleaned = raw.replace(/\s+/g, ' ').trim();
+                        words = splitToWords(cleaned);
+                        pagesCache[pageNum] = words;
+                        displayWords();
+                    });
+                });
+            }
+            document.getElementById('pageInfoLbl').innerText = 'Stranica: ' + currentPage + ' / ' + totalPages;
+            document.getElementById('pageWordCountLbl').innerText = 'Riječi na stranici: ' + words.length;
+        }
 
-function toggleControls() {
-  controlsHidden = !controlsHidden;
-  var displayValue = controlsHidden ? 'none' : 'block';
+        function displayWords() {
+            var container = document.getElementById('readerContent');
+            var html = '';
+            for (var i = 0; i < words.length; i++) {
+                var cls = 'word';
+                if (posIndex === i) cls += ' pos-mark';
+                if (startIndex === i) cls += ' start-mark';
+                if (endIndex === i) cls += ' end-mark';
+                if (pacerActive && isWordInPace(i)) cls += ' pace-mark';
 
-  document.getElementById('controlsTop').style.display = displayValue;
-  document.getElementById('controlsBottom').style.display = displayValue;
-  document.getElementById('controlsTimers').style.display = controlsHidden
-    ? 'none'
-    : '';
+                html += '<span class="' + cls + '" onclick="wordClick(' + i + ')">' + words[i] + '</span> ';
+            }
+            container.innerHTML = html;
+        }
 
-  document.getElementById('toggleBtn').innerHTML = controlsHidden
-    ? 'Prikazi kontrole'
-    : 'Sakrij kontrole';
+        function wordClick(idx) {
+            posIndex = idx;
+            displayWords();
+        }
 
-  var ta = document.getElementById('textArea');
-  if (controlsHidden) {
-    var targetHeight = Math.round(window.innerHeight * 0.7);
-    if (targetHeight < 200) targetHeight = 200;
-    ta.style.height = targetHeight + 'px';
-  } else {
-    ta.style.height = '260px';
-  }
-}
+        function nextPage() {
+            if (currentPage < totalPages) {
+                if (isPaused) { alert('Klikni "Nastavi" prije prelaska na sljedeću stranicu.'); return; }
+                recordRacePage();
+                renderPage(currentPage + 1);
+                if (pacerActive) { pacerIndex = 0; }
+            }
+        }
 
-// Inicijalno stanje
-timerUpdateDisplay();
-stopwatchUpdateDisplay();
+        function prevPage() {
+            if (currentPage > 1) {
+                renderPage(currentPage - 1);
+                if (pacerActive) { pacerIndex = 0; }
+            }
+        }
+
+        function goToPageNum() {
+            var target = parseInt(document.getElementById('goToPageInput').value, 10);
+            if (isNaN(target)) return;
+            if (isPaused) { alert('Klikni "Nastavi" prije skoka na drugu stranicu.'); return; }
+            renderPage(target);
+            if (pacerActive) { pacerIndex = 0; }
+        }
+
+        function closePdf() {
+            pdfDoc = null;
+            currentFileName = '';
+            words = [];
+            pagesCache = {};
+            stopPacer();
+            raceActive = false;
+            isPaused = false;
+            document.getElementById('pdfSection').classList.add('d-none');
+            document.getElementById('pdfBottomControls').classList.add('d-none');
+            document.getElementById('closePdfBtn').classList.add('d-none');
+            document.getElementById('pastedSection').classList.remove('d-none');
+            document.getElementById('readerContent').innerHTML = '<span class="text-muted">Izaberite PDF fajl gore ili unesite tekst u polje iznad...</span>';
+            document.getElementById('pdfFileInput').value = '';
+        }
+
+        // --- MARKERI ---
+        function setMarker(type) {
+            if (posIndex === null) { alert('Prvo klikni na riječ u tekstu.'); return; }
+            if (type === 'start') {
+                startIndex = posIndex;
+            } else {
+                if (startIndex === null) { alert('Prvo postavi Marker Početak.'); return; }
+                endIndex = posIndex;
+                var cnt = Math.abs(endIndex - startIndex) + 1;
+                document.getElementById('markerCountLbl').innerText = 'Pročitano: ' + cnt + ' riječi';
+            }
+            displayWords();
+        }
+
+        function clearMarkers() {
+            startIndex = null;
+            endIndex = null;
+            document.getElementById('markerCountLbl').innerText = '';
+            displayWords();
+        }
+
+        // --- POZICIJA U LOCALSTORAGE ---
+        function savePosition() {
+            if (!currentFileName) return;
+            localStorage.setItem('pdf_page_' + currentFileName, currentPage);
+            document.getElementById('prevPosLbl').innerText = 'Sačuvana stranica: ' + currentPage;
+            alert('Pozicija sačuvana!');
+        }
+
+        function goToSavedPositionModal() {
+            if (!currentFileName) return;
+            var saved = localStorage.getItem('pdf_page_' + currentFileName);
+            if (!saved) { alert('Nema sačuvane pozicije za ovaj fajl.'); return; }
+            renderPage(parseInt(saved, 10));
+        }
+
+        // --- PRETRAGA ---
+        function runSearch() {
+            var q = document.getElementById('searchInput').value.trim().toLowerCase();
+            var box = document.getElementById('searchResultsBox');
+            if (!q) { box.classList.add('d-none'); return; }
+
+            var results = [];
+            for (var p = 1; p <= totalPages; p++) {
+                var pw = pagesCache[p];
+                if (!pw) continue;
+                for (var i = 0; i < pw.length; i++) {
+                    if (pw[i].toLowerCase().indexOf(q) !== -1) {
+                        var start = Math.max(0, i - 4);
+                        var end = Math.min(pw.length, i + 5);
+                        var ctx = pw.slice(start, end).join(' ');
+                        results.push({ page: p, idx: i, context: ctx });
+                        if (results.length >= 50) break;
+                    }
+                }
+                if (results.length >= 50) break;
+            }
+
+            if (results.length === 0) {
+                box.innerHTML = '<div class="info">Nema rezultata.</div>';
+            } else {
+                var html = '<div class="info mb-1">Rezultata: ' + results.length + '</div>';
+                for (var r = 0; r < results.length; r++) {
+                    html += '<div class="search-result-item" onclick="goToSearchResult(' + results[r].page + ', ' + results[r].idx + ')">' +
+                        '<span class="badge bg-secondary me-2">str. ' + results[r].page + '</span>' + results[r].context + '</div>';
+                }
+                box.innerHTML = html;
+            }
+            box.classList.remove('d-none');
+        }
+
+        function goToSearchResult(page, idx) {
+            renderPage(page);
+            posIndex = idx;
+            displayWords();
+        }
+
+        // --- RACE MOD ---
+        function toggleRace() {
+            if (!currentFileName) { alert('Prvo učitaj PDF.'); return; }
+            if (!raceActive) {
+                raceActive = true;
+                raceStats = [];
+                raceLastTime = new Date().getTime();
+                document.getElementById('raceToggleBtn.innerText') = '⏹ Stop Race';
+                document.getElementById('raceToggleBtn').className = 'btn btn-danger btn-sm';
+                document.getElementById('raceToggleBtn').innerText = '⏹ Stop Race';
+            } else {
+                recordRacePage();
+                raceActive = false;
+                document.getElementById('raceToggleBtn').innerText = '🏁 Start Race';
+                document.getElementById('raceToggleBtn').className = 'btn btn-warning btn-sm';
+            }
+        }
+
+        function recordRacePage() {
+            if (!raceActive) return;
+            var now = new Date().getTime();
+            var secs = (now - raceLastTime) / 1000;
+            var mins = secs / 60;
+            var wpm = mins > 0 ? Math.round(words.length / mins) : 0;
+            raceStats.push({ page: currentPage, words: words.length, seconds: secs, wpm: wpm });
+            raceLastTime = now;
+
+            var html = '';
+            var totalW = 0, totalS = 0;
+            for (var i = 0; i < raceStats.length; i++) {
+                html += '<div class="info">Str. ' + raceStats[i].page + ': <strong>' + raceStats[i].wpm + ' wpm</strong> (' + raceStats[i].words + ' riječi, ' + raceStats[i].seconds.toFixed(1) + 's)</div>';
+                totalW += raceStats[i].words;
+                totalS += raceStats[i].seconds;
+            }
+            if (!raceActive && raceStats.length > 0) {
+                var avgMins = totalS / 60;
+                var avgWpm = avgMins > 0 ? Math.floor(totalW / avgMins) : 0;
+                html += '<hr class="my-1"/><div class="info text-info fw-bold">Prosjek: <strong class="text-danger">' + avgWpm + ' wpm</strong></div>';
+            }
+            document.getElementById('raceStatsBox').innerHTML = html;
+        }
+
+        // --- PACER MOD ---
+        function isWordInPace(i) {
+            var chunk = parseInt(document.getElementById('pacerChunkSelect').value) || 2;
+            var start = pacerIndex * chunk;
+            var end = start + chunk;
+            return i >= start && i < end;
+        }
+
+        function startPacer() {
+            if (!currentFileName) { alert('Prvo učitaj PDF.'); return; }
+            var wpm = parseInt(document.getElementById('pacerWpmInput').value) || 300;
+            var chunk = parseInt(document.getElementById('pacerChunkSelect').value) || 2;
+
+            pacerActive = true;
+            pacerIndex = 0;
+            document.getElementById('pacerControls').classList.add('d-none');
+            document.getElementById('pacerActiveBox').classList.remove('d-none');
+            document.getElementById('pacerActiveBox').classList.add('d-flex');
+            document.getElementById('pacerStatusLbl').innerText = 'Tempo: ' + wpm + ' wpm, grupa: ' + chunk;
+
+            var intervalMs = (60000 / wpm) * chunk;
+            if (pacerIntervalId) clearInterval(pacerIntervalId);
+
+            pacerIntervalId = setInterval(function () {
+                var totalChunks = Math.ceil(words.length / chunk);
+                pacerIndex++;
+                if (pacerIndex >= totalChunks) {
+                    stopPacer();
+                } else {
+                    displayWords();
+                }
+            }, intervalMs);
+        }
+
+        function stopPacer() {
+            if (pacerIntervalId) { clearInterval(pacerIntervalId); pacerIntervalId = null; }
+            pacerActive = false;
+            pacerIndex = 0;
+            document.getElementById('pacerControls').classList.remove('d-none');
+            document.getElementById('pacerActiveBox').classList.add('d-none');
+            document.getElementById('pacerActiveBox').classList.remove('d-flex');
+            displayWords();
+        }
+
+        function togglePauseSession() {
+            isPaused = !isPaused;
+            document.getElementById('pauseResumeBtn').innerText = isPaused ? '▶ Nastavi' : '⏸ Pauza';
+            document.getElementById('pauseResumeBtn').className = isPaused ? 'btn btn-success btn-sm' : 'btn btn-outline-secondary btn-sm';
+        }
+ 
