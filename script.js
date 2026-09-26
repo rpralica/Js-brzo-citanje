@@ -533,7 +533,8 @@ function nextPage() {
     }
     recordRacePage();
     pacerIndex = 0;
-    document.getElementById('pageTop').scrollIntoView();
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
     var wasActive = pacerActive;
     renderPage(currentPage + 1, function () {
       if (wasActive) resumePacer();
