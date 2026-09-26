@@ -217,27 +217,22 @@
 
                 <div class="row d-flex justify-content-center align-items-center gap-2 mb-2 flex-wrap">
                     <div class="card mb-3">
-                        <div class="row d-flex justify-content-center align-items-center mx-auto w-25">
+                        <div class="d-flex justify-content-center align-items-center p-2">
                             <div class="btn-group">
-                                <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="prevPage()">«
-                                    Prethodna</button>
-                                <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="nextPage()">Sljedeća
-                                    »</button>
+                                <button class="btn btn-outline-primary btn-sm" type="button" onclick="prevPage()">« Prethodna</button>
+                                <button class="btn btn-outline-primary btn-sm" type="button" onclick="nextPage()">Sljedeća »</button>
                             </div>
                         </div>
                         <div class="card-body py-2">
                             <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
-                    
                                 <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj
                                     poziciju</button>
-                                <button class="btn btn-secondary btn-sm" type="button" onclick="goToSavedPositionModal()">Idi na sačuvanu
-                                    poziciju</button>
+                                <button class="btn btn-secondary btn-sm" type="button" onclick="goToSavedPositionModal()">Idi na
+                                    sačuvanu poziciju</button>
                                 <span class="info ms-2" id="prevPosLbl"></span>
                             </div>
                         </div>
-                    
                     </div>
-                      
                     <div class="input-group input-group-sm" style="width: auto;">
                         <span class="input-group-text">Idi na str.</span>
                         <input type="number" id="goToPageInput" min="1" class="form-control" style="width: 70px;"
@@ -307,25 +302,20 @@
             <!-- DONJE KONTROLE ZA POZICIJU I MARKERE -->
             <div id="pdfBottomControls" class="d-none">
                 <div class="card mb-3">
-                    <div class="row d-flex justify-content-center align-items-center mx-auto w-25">
-                                <div class="btn-group">
-                                    <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="prevPage()">«
-                                        Prethodna</button>
-                                    <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="nextPage()">Sljedeća
-                                        »</button>
-                                </div>
-                            </div>
+                    <div class="d-flex justify-content-center align-items-center p-2">
+                        <div class="btn-group">
+                            <button class="btn btn-outline-primary btn-sm" type="button" onclick="prevPage()">« Prethodna</button>
+                            <button class="btn btn-outline-primary btn-sm" type="button" onclick="nextPage()">Sljedeća »</button>
+                        </div>
+                    </div>
                     <div class="card-body py-2">
                         <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
-                            
-                            <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj poziciju</button>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="goToSavedPositionModal()">Idi na sačuvanu
                                 poziciju</button>
-                            <button class="btn btn-secondary btn-sm" type="button"
-                                onclick="goToSavedPositionModal()">Idi na sačuvanu poziciju</button>
                             <span class="info ms-2" id="prevPosLbl"></span>
                         </div>
                     </div>
-
                 </div>
                 <div class="card mb-3">
                     <div class="card-body py-2">

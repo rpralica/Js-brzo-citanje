@@ -98,14 +98,16 @@ function resumePacer() {
       }
     } else {
       displayWords();
-      var marked = document.querySelector('.pace-mark');
-      if (marked) {
-        var rect = marked.getBoundingClientRect();
-        var inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
-        if (!inView) {
-          marked.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(function () {
+        var marked = document.querySelector('.pace-mark');
+        if (marked) {
+          var rect = marked.getBoundingClientRect();
+          var inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+          if (!inView) {
+            marked.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         }
-      }
+      }, 50);
     }
   }, cfg.intervalMs);
 }
@@ -471,7 +473,7 @@ function extractAllPagesAsync() {
   }
 }
 
-function renderPage(pageNum) {
+function renderPage(pageNum, callback) {
   if (pageNum < 1) pageNum = 1;
   if (pageNum > totalPages) pageNum = totalPages;
   currentPage = pageNum;
@@ -481,6 +483,7 @@ function renderPage(pageNum) {
     displayWords();
     document.getElementById('pageWordCountLbl').innerText =
       'Riječi na stranici: ' + words.length;
+    if (callback) callback();
   } else if (pdfDoc) {
     pdfDoc.getPage(pageNum).then(function (page) {
       page.getTextContent().then(function (tc) {
@@ -495,15 +498,15 @@ function renderPage(pageNum) {
         displayWords();
         document.getElementById('pageWordCountLbl').innerText =
           'Riječi na stranici: ' + words.length;
+        if (callback) callback();
       });
     });
   }
 
   document.getElementById('pageInfoLbl').innerText =
     'Stranica: ' + currentPage + ' / ' + totalPages;
-    if (currentFileName) {
-      localStorage.setItem('pdf_page_' + currentFileName, currentPage);
-    }
+  if (currentFileName)
+    localStorage.setItem('pdf_page_' + currentFileName, currentPage);
 }
 
 function displayWords() {
@@ -539,11 +542,11 @@ function nextPage() {
       return;
     }
     recordRacePage();
-    renderPage(currentPage + 1);
     pacerIndex = 0;
-    if (pacerActive) {
-      resumePacer();
-    }
+    var wasActive = pacerActive;
+    renderPage(currentPage + 1, function () {
+      if (wasActive) resumePacer();
+    });
   }
 }
 
