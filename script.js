@@ -101,11 +101,7 @@ function resumePacer() {
       setTimeout(function () {
         var marked = document.querySelector('.pace-mark');
         if (marked) {
-          var rect = marked.getBoundingClientRect();
-          var inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
-          if (!inView) {
-            marked.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
+          marked.scrollIntoView(false);
         }
       }, 50);
     }
@@ -543,6 +539,7 @@ function nextPage() {
     }
     recordRacePage();
     pacerIndex = 0;
+    document.getElementById('pageTop').scrollIntoView();
     var wasActive = pacerActive;
     renderPage(currentPage + 1, function () {
       if (wasActive) resumePacer();

@@ -179,7 +179,9 @@
 }
 
 #readerWrap {
-    position: relative; /* mora biti relative da overlay radi */
+    overflow-y: auto;
+    max-height: 80vh;
+    position: relative;
 }
             .qt-block {
                 width: auto;
