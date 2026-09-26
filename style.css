@@ -168,7 +168,19 @@
                 margin-left: 0;
                 padding-bottom: 90px;
             }
+#tapOverlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 10;
+    cursor: pointer;
+    /* nevidljiv ali klikabilan */
+    background: transparent;
+}
 
+#readerWrap {
+    position: relative; /* mora biti relative da overlay radi */
+}
             .qt-block {
                 width: auto;
             }

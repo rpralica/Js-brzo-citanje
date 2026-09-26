@@ -111,8 +111,8 @@
                 <div class="card-body py-2">
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
                         <div class="d-flex align-items-center flex-grow-1 gap-2" style="min-width: 250px;">
-                            <input type="file" id="pdfFileInput" accept=".pdf,application/pdf"
-                                class="form-control form-control-sm flex-grow-1" onchange="handleFileSelect(event)">
+                    <input type="file" id="pdfFileInput" accept=".pdf,.txt,application/pdf,text/plain"
+                        class="form-control form-control-sm flex-grow-1" onchange="handleFileSelect(event)">
                             <button id="closePdfBtn" class="btn btn-outline-danger btn-sm text-nowrap d-none"
                                 type="button" onclick="closePdf()">✕ Zatvori</button>
                         </div>
@@ -215,13 +215,29 @@
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-center align-items-center gap-2 mb-2 flex-wrap">
-                    <div class="btn-group">
-                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="prevPage()">«
-                            Prethodna</button>
-                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="nextPage()">Sljedeća
-                            »</button>
+                <div class="row d-flex justify-content-center align-items-center gap-2 mb-2 flex-wrap">
+                    <div class="card mb-3">
+                        <div class="row d-flex justify-content-center align-items-center mx-auto w-25">
+                            <div class="btn-group">
+                                <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="prevPage()">«
+                                    Prethodna</button>
+                                <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="nextPage()">Sljedeća
+                                    »</button>
+                            </div>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                    
+                                <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj
+                                    poziciju</button>
+                                <button class="btn btn-secondary btn-sm" type="button" onclick="goToSavedPositionModal()">Idi na sačuvanu
+                                    poziciju</button>
+                                <span class="info ms-2" id="prevPosLbl"></span>
+                            </div>
+                        </div>
+                    
                     </div>
+                      
                     <div class="input-group input-group-sm" style="width: auto;">
                         <span class="input-group-text">Idi na str.</span>
                         <input type="number" id="goToPageInput" min="1" class="form-control" style="width: 70px;"
@@ -282,16 +298,26 @@
             <div class="reader-content-wrap mx-auto" id="readerWrap" style="width: 40%;">
                 <div id="marginLineLeft" class="margin-line d-none" style="left: 10%;"></div>
                 <div id="marginLineRight" class="margin-line d-none" style="right: 10%;"></div>
+                <div id="tapOverlay" class="d-none" onclick="handleTapPause()"></div>
                 <div id="readerContent" class="reader-content border rounded p-3 mb-3" style="font-size: 25px;">
-                    <span class="text-muted">Izaberite PDF fajl gore ili unesite tekst u polje iznad...</span>
+                   
                 </div>
             </div>
 
             <!-- DONJE KONTROLE ZA POZICIJU I MARKERE -->
             <div id="pdfBottomControls" class="d-none">
                 <div class="card mb-3">
+                    <div class="row d-flex justify-content-center align-items-center mx-auto w-25">
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="prevPage()">«
+                                        Prethodna</button>
+                                    <button class="btn btn-outline-primary btn-sm w-25" type="button" onclick="nextPage()">Sljedeća
+                                        »</button>
+                                </div>
+                            </div>
                     <div class="card-body py-2">
                         <div class="d-flex flex-wrap justify-content-center align-items-center gap-2">
+                            
                             <button class="btn btn-secondary btn-sm" type="button" onclick="savePosition()">Sačuvaj
                                 poziciju</button>
                             <button class="btn btn-secondary btn-sm" type="button"
@@ -299,6 +325,7 @@
                             <span class="info ms-2" id="prevPosLbl"></span>
                         </div>
                     </div>
+
                 </div>
                 <div class="card mb-3">
                     <div class="card-body py-2">
