@@ -101,7 +101,13 @@ function resumePacer() {
       setTimeout(function () {
         var marked = document.querySelector('.pace-mark');
         if (marked) {
-          marked.scrollIntoView(false);
+          var rect = marked.getBoundingClientRect();
+          var scrollTop =
+            window.pageYOffset ||
+            document.documentElement.scrollTop ||
+            document.body.scrollTop;
+          var targetY = scrollTop + rect.top - window.innerHeight / 2;
+          window.scrollTo(0, targetY);
         }
       }, 50);
     }
